@@ -1,4 +1,4 @@
-#English
+**# English**
 
 # Greenplum MCP-based Intelligent Operations Demo
 

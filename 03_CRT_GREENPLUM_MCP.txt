@@ -1,0 +1,95 @@
+# 1. gp_mcp 다운로드 및 압축해제 
+gzip -dc gp-mcp-server-1.0.0-linux-x64.tar.gz |tar -xvf -
+chmod +x gp-mcp-server
+mv gp-mcp-server /usr/local/bin/.
+
+# 2. gp_mcp 기본 디렉토리 생성 및 config.yaml 작성 
+uijin@ai:~/ mkdir $HOME/.gp_mcp
+uijin@ai:~/.gp_mcp$ cat /home/uijin/.gp_mcp/config.yaml
+mcp:
+    home: /home/uijin/.gp_mcp
+    host: 0.0.0.0
+    port: 8080
+    endpoint: /mcp
+    log-path: /home/uijin/.gp_mcp/server.log
+    log-level: info
+    tls-enable: false
+    tls-cert: ""
+    tls-key: ""
+    tls-ca: ""
+    tls-client-auth: ""
+    max-connections: 10
+service:
+    gpdb:
+        host: 172.16.200.191
+        port: 5432
+        database: "kbc"
+        username: "gpadmin"
+        password: "changeme"
+        plan_analyzer:
+            threshold_high_rows: 100000
+            threshold_huge_rows: 1e+06
+            threshold_skew_ratio: 1.5
+            threshold_estimation_over: 10
+            threshold_estimation_under: 0.1
+            threshold_missing_index_rows: 100000
+            threshold_partition_scan: 5
+            threshold_optimizer_diff_percent: 10
+            threshold_func_pred_cost: 100
+            threshold_func_pred_rows: 1000
+        sslmode: disable
+auth:
+    enabled: false
+    type: ""
+    rate_limit_failures: 10
+    oauth2:
+        resource_url: ""
+        scopes_supported: []
+        authorization_server_url: ""
+        jwks_url: ""
+        audience: ""
+        permission_levels: []
+        default_database_username: ""
+        default_database_password: ""
+        use_tls: false
+        tls_ca_file: ""
+        tls_cert_file: ""
+        tls_key_file: ""
+
+        -- tls 또는 tls+auth 설정시 auth 항목의 수정이 필요합니다.
+
+# 3. mcp 구동 
+
+nohup gp-mcp-server streamable-http --port 8080 --config-file=/home/uijin/.gp_mcp/config.yaml &
+
+# 4. mcp 구동 확인
+
+방법1)
+uijin@ai:~$ ps -ef |grep mcp
+uijin      81437       1  0 Apr21 ?        00:00:01 gp-mcp-server streamable-http --port 8080 --config-file=/home/uijin/.gp_mcp/config.yaml
+방법2)
+#포트확인
+root@ai:~# netstat -nlp | grep 8080
+tcp6       0      0 :::8080                 :::*                    LISTEN      158286/gp-mcp-serve
+#curl 을 통해 확인
+uijin@ai:~/.gp_mcp$ curl -N -v http://localhost:8080/mcp
+* Host localhost:8080 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:8080...
+* Connected to localhost (::1) port 8080
+> GET /mcp HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/8.5.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK      <------ 정상
+< Cache-Control: no-cache
+< Connection: keep-alive
+< Content-Type: text/event-stream
+< Date: Mon, 09 Feb 2026 10:01:11 GMT
+< Transfer-Encoding: chunked
+
+
+
+

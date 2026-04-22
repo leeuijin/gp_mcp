@@ -1,0 +1,142 @@
+시나리오2
+=============================================================================================================
+Q1. 2026년 1월 19일에 배송된 제품 중 품질검사가 FAIL 인데 고객에게 발송된 건이 있어?
+=============================================================================================================
+네, FAIL 판정을 받은 제품이 고객에게 배송된 건이 있습니다. 
+MCP_KBC_FINAL_execute_query
+
+📊 조회 결과
+2026년 1월 19일에 배송된 제품 중 품질검사(Quality Inspection) 결과가 FAIL인 건은 총 19건입니다. 
+MCP_KBC_FINAL_execute_query
+실제 조회 데이터 출력 (생략)
+
+🚨 주요 이슈 분석 
+MCP_KBC_FINAL_execute_query
+총 배송 수량: 67,827 개
+배송된 불량제품 범위: 불량률 0.42% ~ 2.89%
+영향받은 고객사: 10개사 (Customer_1 ~ Customer_10)
+검사유형:
+Voltage Test: 18건
+Charge/Discharge Test: 1건
+⚠️ 중대한 품질관리 문제: FAIL 판정을 받은 제품이 출하 단계에서 적절히 필터링되지 않아 고객에게 배송되었습니다. 이는 생산 후 검사 단계와 출하 단계 사이의 연계 프로세스가 정상 작동하지 않음을 의미합니다.
+=============================================================================================================
+Q2. 2026년 1월 19일에 품질 검사가 FAIL 인 LOT을 확인해서 사용된 원자재를 찾아줘
+=============================================================================================================
+2026년 1월 19일에 품질검사(Quality Inspection) 결과가 FAIL인 LOT들이 사용한 원자재를 상세 분석했습니다.
+총 60개 원자재 사용 이력 (FAIL 판정 LOT 기준) 
+MCP_KBC_FINAL_execute_query
+실제 조회 데이터 출력 (생략)
+상위 문제 원자재 (가장 많이 사용된 순) (생략)
+
+⚠️ 위험 신호 
+MCP_KBC_FINAL_execute_query
+재반복 원자재: Material_2, Material_9가 가장 많은 FAIL LOT에서 발견됨
+공급업체별 문제:
+Supplier_3: Material_2, Material_7, Material_12 등에서 반복 불량
+Supplier_4: Material_8, Material_18 등에서 반복 불량
+영향 제품: Battery_Model_8이 가장 많은 FAIL LOT 포함 (불량률 0.12% ~ 2.87%)
+권장조치: 상위 문제 원자재 및 해당 공급업체에 대한 품질 개선 협의 필요
+
+=============================================================================================================
+Q3. kbc데이터베이스에 접속해서 2026년 1월 동안 불량률이 높은 제품과 사용한 원자재를 분석해줘
+=============================================================================================================
+KBC 데이터베이스에 접속하여 2026년 1월 동안의 불량률 현황을 분석하겠습니다.
+실행 SQL 쿼리
+-- 2026년 1월 불량률 높은 제품 분석
+SELECT 
+    p.product_id,
+    p.product_name,
+    p.product_type,
+    COUNT(DISTINCT pl.lot_id) as total_lot_count,
+    COUNT(DISTINCT CASE WHEN qi.result = 'FAIL' THEN qi.lot_id END) as fail_lot_count,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN qi.result = 'FAIL' THEN qi.lot_id END)::numeric / 
+        NULLIF(COUNT(DISTINCT pl.lot_id), 0)::numeric * 100, 
+        2
+    ) as defect_rate_percent,
+    ROUND(AVG(qi.defect_rate), 2) as avg_defect_rate
+FROM products p
+INNER JOIN production_lot pl ON p.product_id = pl.product_id
+LEFT JOIN quality_inspection qi ON pl.lot_id = qi.lot_id
+WHERE pl.production_date >= '2026-01-01' 
+  AND pl.production_date < '2026-02-01'
+GROUP BY p.product_id, p.product_name, p.product_type
+ORDER BY defect_rate_percent DESC
+LIMIT 10;
+조회 결과 출력 (생략)
+불량률 높은 제품의 사용 원자재 분석
+-- Battery_Model_8 사용 원자재 분석
+SELECT 
+    rm.material_id,
+    rm.material_name,
+    rm.supplier_name,
+    COUNT(DISTINCT lmu.lot_id) as usage_count,
+    ROUND(AVG(lmu.quantity_used), 2) as avg_quantity,
+    COUNT(DISTINCT CASE WHEN qi.result = 'FAIL' THEN qi.lot_id END) as fail_count,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN qi.result = 'FAIL' THEN qi.lot_id END)::numeric / 
+        NULLIF(COUNT(DISTINCT lmu.lot_id), 0)::numeric * 100, 
+        2
+    ) as material_defect_rate
+FROM raw_materials rm
+INNER JOIN lot_material_usage lmu ON rm.material_id = lmu.material_id
+INNER JOIN production_lot pl ON lmu.lot_id = pl.lot_id
+INNER JOIN products p ON pl.product_id = p.product_id
+LEFT JOIN quality_inspection qi ON pl.lot_id = qi.lot_id
+WHERE p.product_id = 8 
+  AND pl.production_date >= '2026-01-01' 
+  AND pl.production_date < '2026-02-01'
+GROUP BY rm.material_id, rm.material_name, rm.supplier_name
+ORDER BY material_defect_rate DESC;
+
+Battery_Model_8 사용 원자재 불량률
+| 원자재ID | 원자재명 | 공급업체 | 사용 횟수 | 평균사용량 | 불량 LOT | 불량률(%) |
+|---------|---------|---------|---------|---------|---------|---------|
+| 8 | Material_8 | Supplier_4 | 156 | 265.45 | 52 | 33.33% |
+| 17 | Material_17 | Supplier_3 | 156 | 234.12 | 51 | 32.69% |
+| 20 | Material_20 | Supplier_1 | 155 | 389.67 | 49 | 31.61% |
+| 19 | Material_19 | Supplier_5 | 154 | 312.54 | 48 | 31.17% |
+| 4 | Material_4 | Supplier_5 | 153 | 198.34 | 47 | 30.72% |
+
+2순위 불량 제품: Battery_Model_3 (불량률 28.51%)
+| 원자재ID | 원자재명 | 공급업체 | 사용 횟수 | 평균사용량 | 불량 LOT | 불량률(%) |
+|---------|---------|---------|---------|---------|---------|---------|
+| 11 | Material_11 | Supplier_2 | 146 | 289.45 | 44 | 30.14% |
+| 9 | Material_9 | Supplier_5 | 146 | 445.78 | 42 | 28.77% |
+| 6 | Material_6 | Supplier_2 | 145 | 267.89 | 40 | 27.59% |
+| 12 | Material_12 | Supplier_3 | 144 | 412.34 | 39 | 27.08% |
+| 5 | Material_5 | Supplier_1 | 143 | 156.23 | 38 | 26.57% |
+
+위험 신호 및 문제점
+
+1. 원자재별 문제점
+| 공급업체 | 고위험 원자재 | 평균불량률 | 개선 필요도 |
+|---------|------------|---------|---------|
+| **Supplier_4** | Material_8 | 33.33% | 🔴 최우선 |
+| **Supplier_5** | Material_19, Material_4, Material_9 | 30-31% | 🔴 최우선 |
+| **Supplier_3** | Material_17, Material_12 | 32-33% | 🔴 최우선 |
+| **Supplier_2** | Material_11, Material_6 | 27-30% | 🟠 높음 |
+| **Supplier_1** | Material_20, Material_5 | 26-31% | 🟠 높음 |
+2. 제품 카테고리별 불량 특성
+| 제품유형 | 평균불량률 | 문제 제품 |
+|---------|---------|---------|
+| **PACK** | 27.00% | Model_3, Model_9, Model_5 |
+| **MODULE** | 27.64% | Model_8, Model_6, Model_10, Model_7 |
+| **CELL** | 23.68% | Model_2, Model_4, Model_1 |
+
+분석: PACK과 MODULE 제품의 불량률이 CELL 대비 4~5% 포인트 높음 → 복잡한 조립 공정 문제 가능성
+
+💡 권장 조치사항 
+MCP_KBC_FINAL_i...t_database
+즉시 조치 (1주 이내)
+Supplier_4 (Material_8): 품질 관리 협의 및 입고검사 강화
+Supplier_5 (Material_19, Material_4, Material_9): 공급처 변경 검토
+Supplier_3 (Material_17): 원자재 사양 검증
+단기 조치 (1개월 이내)
+Battery_Model_8, Model_3 생산 일시 중단 검토
+설비 점검 (equipment_log의 온도/압력 이상 확인)
+원자재 로트별 불량률 추적
+장기 개선
+공급업체 재계약 조건 강화
+제품 설계 개선 (특히 PACK/MODULE)
+품질 검사 기준 강화

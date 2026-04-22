@@ -22,6 +22,26 @@ docker run -d -p 3000:8080 \
   --name open-webui \
   ghcr.io/open-webui/open-webui:main
 
+root@ai:~# docker ps
+CONTAINER ID   IMAGE                                COMMAND           CREATED         STATUS                            PORTS                                         NAMES
+88ff964b0bd7   ghcr.io/open-webui/open-webui:main   "bash start.sh"   6 seconds ago   Up 6 seconds (health: starting)   0.0.0.0:3000->8080/tcp, [::]:3000->8080/tcp   open-webui
+
+# 5.open-webui 접속확인
+
+ 브라우져를 이용해서 http://172.16.200.232:3000/ 접속하면 관리자 계정을 생성을 합니다. (환경에따라 docker가 올라오기까지 약 15~20초 정도 걸릴수 있습니다.)  
+
+# 6.open-webui claude 연동 
+
+  https://openwebui.com/posts/anthropic_2e8d9af5 접속 후 get 버튼 클릭 후 Open WebUI URL에 정확한지 확인후 Import 클릭
+  자동으로 Anthropic 함수 항목이 로딩 되며 코드에서 ANTHROPIC_API_KEY default 항목에 API 키 입력 후 저장
+  우측 상당 관리자 패널 함수 탭에 Anthropic 함수 토글 스위치(on: 초록색)가 켜져있는지 확인
+
+# 7.테스트 
+
+  http://172.16.200.232:3000/ 접속해서 죄측 상단 모델을 선택 후 cluade 여러 모델이 리스트업 되면 로딩이 완료 되었다는 것입니다.
+  프롬프트에 안녕이라고 메시지를 보내면 정상적으로 응답이 안될 경우 ANTHROPIC_API_KEY 를 다시 확인해주세요
+  설명 : https://docs.openwebui.com/getting-started/quick-start/starting-with-functions/
+
 Ref: https://docs.openwebui.com/getting-started/quick-start
 
 

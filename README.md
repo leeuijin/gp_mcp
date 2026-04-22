@@ -30,7 +30,7 @@ OpenWebUI (chat/voice interface) → LLM → Greenplum Database → OpenWebUI (a
 2. Move beyond simple monitoring and validate the feasibility of **autonomous database operations (AIOps)** using LLMs.
 
 
-#Korean
+**#Korean**
 
 # Greenplum MCP 기반 지능형 운영 데모
 

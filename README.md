@@ -1,6 +1,6 @@
 #English
 
-Greenplum MCP-based Intelligent Operations Demo
+   Greenplum MCP-based Intelligent Operations Demo
 
 This project demonstrates how to integrate data analytics and system operations in a Greenplum database environment using MCP (Model Context Protocol) and LLMs.
 

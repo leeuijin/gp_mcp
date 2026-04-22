@@ -1,0 +1,27 @@
+==============================================================================
+OPEN WEBUI install (Docker)
+==============================================================================
+# 1. docker 이미지 pull 
+docker pull ghcr.io/open-webui/open-webui:main
+
+# 2. 실행 중인 컨테이너 중지
+docker stop open-webui
+
+# 3. 기존 컨테이너 삭제
+docker rm -f open-webui
+
+# 4. ANTHROPIC_API를 지원하는 open-webui 실행 
+
+docker run -d -p 3000:8080 \
+  -e WHISPER_MODEL=base \
+  -e WHISPER_LANGUAGE=ko \
+  -e ENABLE_ANTHROPIC_API=true \
+  -e ANTHROPIC_API_KEY="[YOUR_ANTHROPIC_API_KEY]" \
+  --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  --name open-webui \
+  ghcr.io/open-webui/open-webui:main
+
+Ref: https://docs.openwebui.com/getting-started/quick-start
+
+

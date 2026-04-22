@@ -20,6 +20,9 @@ quality_inspection: LOT 품질 검사 결과 테이블
 raw_materials: 원자재 마스터 테이블
 shipments: LOT 출하 정보 테이블
 */
+create database kbc;
+
+\connect kbc
 
 -- ==========================================================================
 -- #Dimension 테이블 (상대적으로 작음 → Row AO 유지 가능)

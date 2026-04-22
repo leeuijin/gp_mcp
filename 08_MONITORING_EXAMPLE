@@ -1,0 +1,328 @@
+========================================================================================================
+Q1. 그린플럼 커맨드센터는 gpperfmon 데이터베이스를 통해 모든 히스토리가 관리되고 있어
+gpmon_mcp를 이용하여 gpperfmon 데이터베이스의 모든 테이블과 컬럼 그리고 어떤 데이터를 관리하고 있는지 분석해줘
+========================================================================================================
+gpperfmon 데이터베이스 개요
+| 항목 | 정보 |
+|------|------|
+| **데이터베이스명** | gpperfmon |
+| **소유자** | gpadmin |
+| **인코딩** | UTF8 |
+| **데이터베이스 크기** | 246.89 MB |
+| **총 테이블 수** | 46개 테이블 + 4개 뷰 |
+| **주요 스키마** | gpmetrics (41개 테이블), gpcc_schema (5개 테이블), public (0개) |
+주요 스키마 구성
+| 테이블명 | 행 수 | 주요 컬럼 | 설명 |
+|---------|-------|---------|------|
+| **dca_appliance_version** | 1,000,000 | version | DCA 어플라이언스 버전 정보 |
+| **dca_hostmapping** | 1,000,000 | dcahostname, customerhostname, hosttype | DCA와 고객 호스트 매핑 정보 |
+| **dca_serial_number** | 1,000,000 | version | DCA 일련번호 관리 |
+| **os_timezone** | 1,000,000 | abbrev, utc_offset | 운영체제 타임존 정보 |
+| **pghba_lock** | 0 | id | pg_hba.conf 잠금 관리 |
+gpmetrics (성능 모니터링 & 이력 관리) 
+| 테이블명 | 행 수 | 분산정책 | 파티션 | 설명 |
+|---------|-------|---------|--------|------|
+| **_gpcc_pg_log_import** | 1,000,000 | REPLICATED | 없음 | PostgreSQL 로그 (초기 import) |
+| **_gpcc_pg_log_increment** | 1,000,000 | REPLICATED | 없음 | PostgreSQL 로그 (증분 import) |
+| **_gpcc_pg_log_last_file** | 1,000,000 | REPLICATED | 없음 | 마지막 처리된 로그 파일 정보 |
+| **_gpcc_pg_log_meta** | 1 | HASH | 없음 | GP 로그 수집 상태 메타정보 |
+| **gp_log_master_ext** | 1,000,000 | REPLICATED | 없음 | Master 노드 로그 (확장테이블) |
+| **gpcc_pg_log_history** | 1,133 | HASH | logtime (3분할) | PG 로그 이력 조회 |
+... 생략
+핵심 데이터 흐름
+┌─────────────────────────────────────┐
+│   Greenplum Cluster 모니터링         │
+└──────────────┬──────────────────────┘
+               │
+      ┌────────┼────────┐
+      │        │        │
+      ▼        ▼        ▼
+   로그수집  쿼리추적  시스템정보
+      │        │        │
+      │   ┌────┴────┐   │
+      │   ▼         ▼   │
+      │  gpcc_queries_history
+      │  (성능 메트릭)
+      │  • CPU, 메모리
+      │  • 디스크 I/O
+      │  • Spill 파일
+      │
+      ▼
+gpcc_system_history (시스템 리소스)
+gpcc_disk_history (디스크 사용량)
+gpcc_ps_history (프로세스 정보)
+      │
+      ▼
+gpcc_database_history
+(DB 상태: running, queued, blocked)
+      │
+      ▼
+gpcc_alert_history (알람 발생)
+
+========================================================================================================
+Q2. gpmon_mcp를 이용하여 최근 일주일동안 실행 시간이 긴 순으로 상위 5개 SQL 결과를 보여줘
+수행한 총시간,CPU 사용량,디스크 사용량,spill 파일 사용량, 수행했던 쿼리 전문으로 보여줘
+gpperfmon_schema 지식기반의 스키마 정보를 참고하세요
+========================================================================================================
+gpmon_mcp를 통해 gpperfmon 데이터베이스에서 조회한 최근 일주일 동안 실행 시간이 긴 순서의 상위 5개 SQL 결과입니다.
+| 순위 | 실행시간 | 수행총시간 | CPU 사용량 | 디스크 사용량 | Spill 파일 사용량 |
+|---|---|---|---|---|---|
+| **1** | 2026-03-25 10:05:44 | **00:01:02.104891** | 203 | 0 | 0 |
+| **2** | 2026-03-27 12:17:48 | 00:00:07.503113 | 0 | 0 | 0 |
+| **3** | 2026-03-26 01:28:02 | 00:00:06.178821 | 0 | 0 | 0 |
+| **4** | 2026-03-24 23:45:39 | 00:00:05.56042 | 11 | 36,372,480 | 7,610,400 |
+| **5** | 2026-03-29 02:40:24 | 00:00:05.01449 | 2 | 3,932,160 | 0 |
+
+🔍 상위 5개 SQL 상세 정보
+1️⃣ 1위 - 설비 종합효율성점수 조회 쿼리
+실행시간: 2026-03-25 10:05:44
+수행총시간: 00:01:02.104891 (가장 오래 걸림)
+CPU 사용량: 203
+디스크 사용량: 0
+Spill 파일 사용량: 0
+
+WITH equipment_metrics AS (
+  SELECT 
+    e.equipment_id,
+    e.equipment_name,
+    e.line_name,
+    -- 완료율 (20%)
+    COALESCE(ROUND(100.0 * COUNT(CASE WHEN pl.status = 'COMPLETED' THEN 1 END) / 
+             NULLIF(COUNT(DISTINCT pl.lot_id), 0), 2), 0) AS completion_rate,
+    -- 품질합격률 (40%)
+    COALESCE(ROUND(100.0 * COUNT(CASE WHEN qi.result = 'PASS' THEN 1 END) / 
+             NULLIF(COUNT(qi.inspection_id), 0), 2), 0) AS quality_pass_rate,
+    -- 설비안정성 (40%)
+    COALESCE(ROUND(100.0 * COUNT(CASE WHEN el.status = 'NORMAL' THEN 1 END) / 
+             NULLIF(COUNT(el.log_id), 0), 2), 0) AS stability_rate
+  FROM equipment e
+  LEFT JOIN production_lot pl ON e.equipment_id = pl.equipment_id
+  LEFT JOIN quality_inspection qi ON pl.lot_id = qi.lot_id
+  LEFT JOIN equipment_log el ON e.equipment_id = el.equipment_id
+  GROUP BY e.equipment_id, e.equipment_name, e.line_name
+)
+SELECT 
+  equipment_id AS 설비ID,
+  equipment_name AS 설비명,
+  line_name AS 라인명,
+  completion_rate AS 완료율,
+  quality_pass_rate AS 품질합격률,
+  stability_rate AS 설비안정성,
+  ROUND(
+    (quality_pass_rate * 0.40) + 
+    (stability_rate * 0.40) + 
+    (completion_rate * 0.20), 2
+  ) AS 종합효율성점수,
+  CASE 
+    WHEN ROUND(
+      (quality_pass_rate * 0.40) + 
+      (stability_rate * 0.40) + 
+      (completion_rate * 0.20), 2) >= 95 THEN 'A+ 우수'
+    WHEN ROUND(
+      (quality_pass_rate * 0.40) + 
+      (stability_rate * 0.40) + 
+      (completion_rate * 0.20), 2) >= 90 THEN 'A 탁월'
+    WHEN ROUND(
+      (quality_pass_rate * 0.40) + 
+      (stability_rate * 0.40) + 
+      (completion_rate * 0.20), 2) >= 85 THEN 'B 양호'
+    WHEN ROUND(
+      (quality_pass_rate * 0.40) + 
+      (stability_rate * 0.40) + 
+      (completion_rate * 0.20), 2) >= 80 THEN 'C 보통'
+    ELSE 'D 미흡'
+  END AS 등급
+FROM equipment_metrics
+ORDER BY 종합효율성점수 DESC
+
+2️⃣ 2위 - 설비별 월간 생산 통계 쿼리
+실행시간: 2026-03-27 12:17:48
+수행총시간: 00:00:07.503113
+CPU 사용량: 0
+디스크 사용량: 0
+Spill 파일 사용량: 0
+
+SELECT 
+    e.equipment_id,
+    e.equipment_name,
+    e.line_name,
+    DATE_TRUNC('month', pl.production_date)::DATE AS production_month,
+    COUNT(DISTINCT pl.lot_id) AS total_lots,
+    SUM(pl.quantity) AS total_quantity_produced,
+    ROUND(AVG(pl.quantity), 2) AS avg_quantity_per_lot,
+    COUNT(DISTINCT el.log_id) AS equipment_events,
+    ROUND(AVG(el.temperature), 2) AS avg_temperature,
+    ROUND(AVG(el.pressure), 2) AS avg_pressure,
+    SUM(CASE WHEN el.status = 'ALERT' THEN 1 ELSE 0 END) AS alert_count,
+    COUNT(DISTINCT qi.inspection_id) AS quality_inspections,
+    SUM(CASE WHEN qi.result = 'FAIL' THEN 1 ELSE 0 END) AS failed_inspections,
+    ROUND(SUM(CASE WHEN qi.result = 'FAIL' THEN 1 ELSE 0 END)::NUMERIC / 
+          NULLIF(COUNT(DISTINCT qi.inspection_id), 0) * 100, 2) AS defect_rate_percent,
+    ROUND(AVG(qi.defect_rate), 2) AS avg_defect_rate
+FROM equipment e
+LEFT JOIN production_lot pl ON e.equipment_id = pl.equipment_id
+LEFT JOIN equipment_log el ON pl.lot_id = el.lot_id AND e.equipment_id = el.equipment_id
+LEFT JOIN quality_inspection qi ON pl.lot_id = qi.lot_id
+WHERE pl.production_date >= '2026-01-01' AND pl.production_date < '2026-07-01'
+GROUP BY e.equipment_id, e.equipment_name, e.line_name, DATE_TRUNC('month', pl.production_date)
+ORDER BY e.equipment_id, production_month
+
+3~5위 쿼리 생략
+
+📈 성능 분석 요약
+| 지표 | 분석 결과 |
+|---|---|
+| **실행 시간** | 1번 쿼리가 가장 오래 걸림 (62초) - 복잡한 CTE와 다중 JOIN |
+| **CPU 사용량** | 1번 쿼리가 최고 (203) - 집계 함수 다용 |
+| **Spill 발생** | 4번, 5번 쿼리에서 발생 - 메모리 부족으로 임시 저장소 필요 |
+| **디스크 I/O** | 4번 쿼리가 최대 (36.4 MB) |
+
+개선 권고:
+
+✅ 1번 쿼리: 인덱스 최적화 필요
+✅ 4번, 5번 쿼리: 메모리 할당 증가 검토
+
+========================================================================================================
+Q3. gpmon_mcp를 이용하여 최근 일주일 동안 I/O와 CPU를 가장 많이 사용한 SQL을 찾는 SQL을 작성하고 결과를 출력해줘  
+그리고 출력형식은 수행 종료시간에서 수행 시간을 뺀시간과 ,CPU 사용량,디스크 사용량,쿼리 전문으로 보여줘
+gpmon_schema 지식기반의 스키마 정보를 참고하세요
+========================================================================================================
+gpmon_mcp를 이용한 최근 일주일 I/O와 CPU 집약적 SQL 분석 결과
+gpperfmon 데이터베이스에서 직접 조회한 최근 일주일 동안 I/O와 CPU를 가장 많이 사용한 SQL 결과입니다
+
+SELECT 
+    (end_time - (execution_seconds || ' seconds')::INTERVAL)::TIMESTAMP AS 쿼리_시작시간,
+    execution_time AS 수행시간,
+    total_cpu_usage AS CPU_사용량,
+    total_disk_mb AS 디스크_사용량_MB,
+    query_text AS 쿼리전문
+FROM gpcc_queries_history
+WHERE ctime >= NOW() - INTERVAL '7 days'
+ORDER BY (total_cpu_usage + (total_disk_bytes::NUMERIC / 1024 / 1024)) DESC
+LIMIT 5;
+
+| 쿼리 시작시간 | 수행시간 | CPU 사용량 | 디스크 사용량(MB) | 쿼리 전문 |
+|---|---|---|---|---|
+| **1** | 2026-03-25 10:04:12 | 00:01:02.104891 | 203 | 0.00 | WITH equipment_metrics AS ( SELECT ... 설비 종합효율성점수 계산 쿼리... ) |
+| **2** | 2026-03-24 23:45:11 | 00:00:05.560420 | 11 | 34.69 | SELECT p.product_name, p.product_type, rm.material_name... 제품-원자재 불량률 분석 쿼리... |
+| **3** | 2026-03-29 02:29:56 | 00:00:04.255910 | 2 | 14.96 | SELECT (p).y_col_key... psample_calc_pvalue_multicol 통계 함수 호출 |
+| **4** | 2026-03-29 02:40:00 | 00:00:05.014490 | 2 | 3.75 | SELECT (p).y_col_key... psample_calc_pvalue_multicol 통계 함수 호출 |
+| **5** | 2026-03-29 02:44:04 | 00:00:04.217530 | 1 | 0.02 | SELECT (p).y_col_key... psample_calc_pvalue_multicol 통계 함수 호출 |
+
+⚠️ 성능 개선 권고
+1번 쿼리 (설비 효율성)
+-- 권고사항: 인덱스 생성
+CREATE INDEX idx_pl_equipment ON production_lot(equipment_id);
+CREATE INDEX idx_pl_lot ON production_lot(lot_id);
+CREATE INDEX idx_qi_lot ON quality_inspection(lot_id);
+CREATE INDEX idx_el_equipment ON equipment_log(equipment_id);
+2번 쿼리 (원자재 분석)
+-- 권고사항: 메모리 할당 증가 (SPILL 파일 제거)
+SET statement_mem = '2GB';
+-- 또는 파티션 테이블 재구성
+3번 쿼리 (통계 함수)
+-- 권고사항: 배열 데이터 사전 집계
+-- 1000개 요소를 샘플링으로 축약하거나
+-- 버치 처리로 분할 실행
+========================================================================================================
+Q4. 현재 그린플럼 데이터베이스 상태를 분석해줘
+========================================================================================================
+현재 Greenplum 데이터베이스 상태 분석
+gpmon_mcp를 통해 수집된 정보를 기반으로 현재 Greenplum 클러스터의 상태를 분석한 결과입니다.
+
+📊 클러스터 기본 정보
+| 항목 | 정보 |
+|---|---|
+| **Greenplum 버전** | 6.32.1 [1] |
+| **PostgreSQL 버전** | 9.4.26 [1] |
+| **현재 데이터베이스** | gpperfmon [1] |
+| **현재 사용자** | gpmon [1] |
+| **세그먼트 수** | 4개 [1] |
+| **컴파일 정보** | GCC 8.5.0, 64-bit (2026년 2월 16일) [1] |
+✅ 클러스터 상태
+Master 노드 상태 
+MCP_GPMON_FINAL_cluster_status
+| 항목 | 정보 |
+|---|---|
+| **호스트명** | mdw |
+| **IP 주소** | mdw |
+| **포트** | 5432 |
+| **데이터 디렉토리** | /data/master/gpseg-1 |
+| **상태** | 정상(u - up) ✅ |
+| Segment | 호스트 | 포트 | 데이터 디렉토리 | 상태 |
+|---|---|---|---|---|
+| Content 0 (dbid:2) | sdw1 | 6000 | /data1/primary/gpseg0 | 정상 ✅ |
+| Content 1 (dbid:3) | sdw1 | 6001 | /data2/primary/gpseg1 | 정상 ✅ |
+| Content 2 (dbid:4) | sdw2 | 6000 | /data1/primary/gpseg2 | 정상 ✅ |
+| Content 3 (dbid:5) | sdw2 | 6001 | /data2/primary/gpseg3 | 정상 ✅ |
+💾 디스크 공간 상태
+| 호스트 | Segment | 디바이스 | 여유 공간 |
+|---|---|---|---|
+| sdw1 | 0 | /dev/mapper/rl-root | **1,320 MB** ⚠️ |
+| sdw1 | 1 | /dev/mapper/rl-root | **1,320 MB** ⚠️ |
+| sdw2 | 2 | /dev/mapper/rl-root | **732 MB** ⚠️⚠️ |
+| sdw2 | 3 | /dev/mapper/rl-root | **732 MB** ⚠️⚠️ |
+📊 데이터베이스 크기 분석
+| 순위 | 데이터베이스 | 크기 | 점유율 |
+|---|---|---|---|
+| 1 | gpadmin | 3,476 MB | 62.4% |
+| 2 | gpkrtpch | 2,316 MB | 41.6% |
+| 3 | **gpperfmon** | **263 MB** | 4.7% |
+| 4 | zabbix | 182 MB | 3.3% |
+| 5 | kbc | 116 MB | 2.1% |
+🛠️ 권고사항
+긴급: sdw2의 디스크 공간 즉시 확보 필요 (732 MB는 위험 수준)
+중요: Mirror Segment 구성으로 고가용성 확보
+보통: Segment 동기화 상태 확인 및 복구
+현재 클러스터는 기능적으로 정상 운영 중이지만, 디스크 용량 관리가 긴급 과제입니다.
+
+========================================================================================================
+질문하기전 테이블 락 상태를 만들고 실시간으로 상태 조회
+Session A : gpadmin=# BEGIN;
+                      BEGIN
+            gpadmin=# LOCK TABLE lock_test IN ACCESS EXCLUSIVE MODE;
+            LOCK TABLE
+Session B : gpadmin=# SELECT * FROM lock_test;
+
+Q5. 현재 실행중인 쿼리들의 상태와 대기중인 쿼리들을 확인해줘, 대기중인 쿼리가 있다면 왜 그런지 분석해줘
+========================================================================================================
+📊 현재 실행 중인 쿼리 현황
+| 순번 | PID | 사용자 | 애플리케이션 | 쿼리 | 실행 시작 시간 | 지속 시간 | 상태 |
+|---|---|---|---|---|---|---|---|
+| **1** | 540516 | gpadmin | psql | `LOCK TABLE lock_test IN ACCESS EXCLUSIVE MODE;` | 2026-03-31 03:14:53 | **26초** | idle in transaction ⚠️ |
+| **2** | 540511 | gpadmin | psql | `SELECT * FROM lock_test;` | 2026-03-31 03:14:59 | **19초** | **active (대기 중)** 🔴 |
+
+🔴 대기 쿼리 분석
+| 항목 | 상세 정보 |
+|---|---|
+| **차단하는 쿼리(Blocking)** | PID 540516 - `LOCK TABLE lock_test IN ACCESS EXCLUSIVE MODE;` |
+| **차단당하는 쿼리(Blocked)** | PID 540511 - `SELECT * FROM lock_test;` |
+| **차단 유형** | AccessShareLock (AccessExclusiveLock 대기) [2] |
+| **차단 시간** | 약 19초 이상 |
+
+🔍 근본 원인 분석
+왜 대기 상황이 발생했는가?
+Lock 충돌 
+MCP_GPMON_FINAL_execute_query
+PID 540516이 ACCESS EXCLUSIVE MODE 잠금을 시도
+PID 540511은 AccessShareLock을 요청하려 함
+ACCESS EXCLUSIVE MODE는 가장 제한적인 잠금이므로 다른 모든 잠금 모드와 충돌
+트랜잭션 타이밍 문제
+PID 540516: 03:14:53에 시작 (idle in transaction 상태로 26초 유지)
+PID 540511: 03:14:59에 시작 (6초 후 시작)
+PID 540516이 먼저 잠금을 획득했으므로, PID 540511의 SELECT는 대기
+대기 상태 확인 
+MCP_GPMON_FINAL...ng_queries
+PID 540516: waiting: false (대기 없음 - 차단 중)
+PID 540511: waiting: true (대기 중) 🔴
+
+📊 현재 상태 요약
+| 지표 | 상태 | 평가 |
+|---|---|---|
+| **실행 중인 쿼리** | 2개 | ⚠️ |
+| **대기 중인 쿼리** | 1개 (PID 540511) | 🔴 긴급 |
+| **Lock Contention** | 있음 | 🔴 처리 필요 |
+| **Resource Group** | 미활성화 [3] | ℹ️ |
+결론: 현재 Lock Contention으로 인한 쿼리 대기가 발생하고 있으며, PID 540516의 ACCESS EXCLUSIVE 잠금으로 인해 PID 540511의 SELECT 쿼리가 19초 이상 차단 중입니다. 즉시 차단 쿼리를 종료하거나 트랜잭션을 완료해야 합니다.
+
+

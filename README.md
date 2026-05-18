@@ -1,9 +1,5 @@
 <img width="1320" height="675" alt="스크린샷 2026-04-22 16 24 38" src="https://github.com/user-attachments/assets/85313df3-62eb-4ee4-b6e0-a37e0e223bcb" />
 
-# DEMO
-https://www.youtube.com/watch?v=RBNljPFehz4
-
-
 **# English**
 
 # Greenplum MCP-based Intelligent Operations Demo
@@ -35,13 +31,12 @@ OpenWebUI (chat/voice interface) → LLM → Greenplum Database → OpenWebUI (a
 1. Leverage AI to enhance the data analysis process and uncover hidden insights beyond traditional methods.
 2. Move beyond simple monitoring and validate the feasibility of **autonomous database operations (AIOps)** using LLMs.
 
+# DEMO
+https://www.youtube.com/watch?v=RBNljPFehz4
 
 **#Korean**
 
 <img width="949" height="475" alt="스크린샷 2026-04-22 16 18 57" src="https://github.com/user-attachments/assets/08c0e89c-f772-4182-8cfe-802d8d465d07" />
-
-# DEMO
-https://www.youtube.com/watch?v=RBNljPFehz4
 
 # Greenplum MCP 기반 지능형 운영 데모
 
@@ -69,3 +64,6 @@ OpenWebUI(질의/chat,음성) → LLM -> Greenplum Database → OpenWebUI (분�
 ## 목적
 1.데이터 분석 과정을 AI를 이용하여 미쳐 확인하지 못한 데이터 인사이트를 찾습니다.
 2.단순 모니터링을 넘어,LLM을 활용한 자율형 데이터베이스 운영(AIOps) 가능성을 검증합니다.
+
+# DEMO
+https://www.youtube.com/watch?v=RBNljPFehz4

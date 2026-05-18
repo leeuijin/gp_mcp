@@ -37,6 +37,9 @@ OpenWebUI (chat/voice interface) → LLM → Greenplum Database → OpenWebUI (a
 
 <img width="949" height="475" alt="스크린샷 2026-04-22 16 18 57" src="https://github.com/user-attachments/assets/08c0e89c-f772-4182-8cfe-802d8d465d07" />
 
+**#DEMO(Youtube)**
+https://www.youtube.com/watch?v=RBNljPFehz4
+
 # Greenplum MCP 기반 지능형 운영 데모
 
 이 프로젝트는 Greenplum 데이터베이스 환경에서 MCP(Model Context Protocol)를 활용하여
